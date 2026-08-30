@@ -4068,7 +4068,7 @@ Defined in: [dd-draggable.ts:70](https://github.com/adumesny/gridstack.js/blob/m
 destroy(): void;
 ```
 
-Defined in: [dd-draggable.ts:132](https://github.com/adumesny/gridstack.js/blob/master/src/dd-draggable.ts#L132)
+Defined in: [dd-draggable.ts:133](https://github.com/adumesny/gridstack.js/blob/master/src/dd-draggable.ts#L133)
 
 Destroy this drag & drop implementation and clean up resources.
 Removes all event handlers and clears internal state.
@@ -4194,7 +4194,7 @@ Register an event callback for the specified event.
 refreshHandles(): void;
 ```
 
-Defined in: [dd-draggable.ts:153](https://github.com/adumesny/gridstack.js/blob/master/src/dd-draggable.ts#L153)
+Defined in: [dd-draggable.ts:154](https://github.com/adumesny/gridstack.js/blob/master/src/dd-draggable.ts#L154)
 
 Re-scans the item element for drag-handle elements after delayed content (React portal,
 Angular component, etc.) has been rendered into the item.  Removes listeners from the
@@ -4238,7 +4238,7 @@ Result from the callback function, if any
 updateOption(opts): DDDraggable;
 ```
 
-Defined in: [dd-draggable.ts:142](https://github.com/adumesny/gridstack.js/blob/master/src/dd-draggable.ts#L142)
+Defined in: [dd-draggable.ts:143](https://github.com/adumesny/gridstack.js/blob/master/src/dd-draggable.ts#L143)
 
 Method to update the options and return the DD implementation
 

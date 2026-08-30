@@ -3,7 +3,7 @@
  * Copyright (c) 2021-2025  Alain Dumesny - see GridStack root license
  */
 
-import { isTouch, pointerdown, touchend, touchmove, touchstart } from './dd-touch';
+import { isTouch, pointerdown, touchend, touchmove, touchstart, cancelPendingTouchDrag, DDTouch } from './dd-touch';
 import { GridItemHTMLElement } from './gridstack';
 
 export interface DDResizableHandleOpt {
@@ -69,6 +69,7 @@ export class DDResizableHandle {
     // Clean up whenever a gesture is armed (mousedown), not only after the
     // 3px threshold flips `moving`. Mirrors DDDraggable.destroy(). See #3345.
     if (this.mouseDownEvent) this._mouseUp(this.mouseDownEvent);
+    cancelPendingTouchDrag();
     this.el.removeEventListener('mousedown', this._mouseDown);
     if (isTouch) {
       this.el.removeEventListener('touchstart', touchstart);
@@ -88,6 +89,11 @@ export class DDResizableHandle {
     if (isTouch) {
       this.el.addEventListener('touchmove', touchmove);
       this.el.addEventListener('touchend', touchend);
+      this.el.addEventListener('touchcancel', touchend); // browser aborting on us, clean up too
+    }
+    if (DDTouch.wasDelayed) {
+      // the long-press wait just elapsed - signal the handle is now armed & ready to resize
+      this.el.classList.add('ui-resizable-armed');
     }
     e.stopPropagation();
     e.preventDefault();
@@ -101,6 +107,7 @@ export class DDResizableHandle {
     } else if (Math.abs(e.x - s.x) + Math.abs(e.y - s.y) > 2) {
       // don't start unless we've moved at least 3 pixels
       this.moving = true;
+      this.el.classList.remove('ui-resizable-armed');
       this._triggerEvent('start', this.mouseDownEvent!);
       this._triggerEvent('move', e);
       // now track keyboard events to cancel
@@ -116,11 +123,13 @@ export class DDResizableHandle {
       this._triggerEvent('stop', e);
       document.removeEventListener('keydown', this._keyEvent);
     }
+    this.el.classList.remove('ui-resizable-armed');
     document.removeEventListener('mousemove', this._mouseMove, true);
     document.removeEventListener('mouseup', this._mouseUp, true);
     if (isTouch) {
       this.el.removeEventListener('touchmove', touchmove);
       this.el.removeEventListener('touchend', touchend);
+      this.el.removeEventListener('touchcancel', touchend);
     }
     delete this.moving;
     delete this.mouseDownEvent;
