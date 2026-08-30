@@ -22,10 +22,61 @@ export const isTouch: boolean = typeof window !== 'undefined' && typeof document
     || (navigator as any).msMaxTouchPoints > 0
   );
 
+/** ms to wait, while touching an item, before starting a drag - lets a quick swipe scroll the
+ * page normally instead of always moving the widget (touch only, no mouse ambiguity - see #2781).
+ * Keep this well under the browser's own long-press threshold (~500ms) so we arm - and start
+ * swallowing `contextmenu` - before it tries to pop its context menu / selection callout. */
+const touchDragDelay = 300;
+/** max distance (px, added over x+y) a finger can move while we wait out `touchDragDelay` before we consider it a scroll instead */
+const touchDelayMoveThreshold = 10;
+
 export class DDTouch {
   /** set to true while we are handling touch dragging, to prevent accepting browser real mouse events (trusted:true) vs our simulated ones (trusted:false) */
   public static touchHandled?: boolean;
   public static pointerLeaveTimeout?: number;
+  /** @internal timer waiting to see if the user pauses (drag) or moves/releases (scroll/tap) */
+  public static touchDelayTimer?: number;
+  /** @internal true right before we simulate the delayed mousedown, so DDDraggable knows to show the 'armed' drag feedback */
+  public static wasDelayed?: boolean;
+}
+
+/** @internal used to swallow the browser long-press context menu once we've armed a touch drag */
+function preventDefaultEvent(e: Event): void {
+  e.preventDefault();
+}
+
+/**
+ * @internal from the moment we arm (start wiggling) until the touch ends, swallow `contextmenu` so a
+ * user holding longer than `touchDragDelay` doesn't lose the drag to the browser's long-press menu.
+ * Note we can't just preventDefault() the touchstart: that is only allowed synchronously during its
+ * dispatch, and doing it there would also kill the page scrolling we're trying to preserve.
+ */
+function suppressContextMenu(): void {
+  // capture=true so we get a first crack at it
+  document.addEventListener('contextmenu', preventDefaultEvent, true);
+  document.addEventListener('selectstart', preventDefaultEvent, true); // what Safari long-press does instead
+}
+
+function restoreContextMenu(): void {
+  document.removeEventListener('contextmenu', preventDefaultEvent, true);
+  document.removeEventListener('selectstart', preventDefaultEvent, true);
+}
+
+/** cancels a pending delayed touch-drag (called on move/end/cancel while waiting) */
+function cancelDelayedTouchStart(target: HTMLElement, onMove: (e: TouchEvent) => void, onEnd: (e: TouchEvent) => void): void {
+  target.removeEventListener('touchmove', onMove);
+  target.removeEventListener('touchend', onEnd);
+  target.removeEventListener('touchcancel', onEnd);
+  cancelPendingTouchDrag();
+}
+
+/** defensively clears any pending delayed touch-drag timer, e.g. when a draggable is disabled/destroyed mid-wait */
+export function cancelPendingTouchDrag(): void {
+  if (DDTouch.touchDelayTimer) {
+    window.clearTimeout(DDTouch.touchDelayTimer);
+    delete DDTouch.touchDelayTimer;
+  }
+  restoreContextMenu();
 }
 
 /**
@@ -61,15 +112,37 @@ function simulatePointerMouseEvent(e: PointerEvent, simulatedType: string) {
 
 
 /**
- * Handle the touchstart events
+ * Handle the touchstart events - waits for `touchDragDelay` (a pause/long-press) before starting
+ * the drag, so a quick swipe scrolls the page instead - see issue #2781
  * @param {Object} e The widget element's touchstart event
  */
 export function touchstart(e: TouchEvent): void {
   // Ignore the event if another widget is already being handled
   if (DDTouch.touchHandled) return;
-  DDTouch.touchHandled = true;
 
-  simulateMouseEvent(e, 'mousedown');
+  // wait for the user to pause before treating this as a drag - bail out (letting the browser
+  // scroll normally) if they release or move too far before the delay elapses.
+  const target = e.currentTarget as HTMLElement;
+  const startX = e.touches[0].clientX;
+  const startY = e.touches[0].clientY;
+
+  const onEnd = () => cancelDelayedTouchStart(target, onMove, onEnd);
+  const onMove = (ev: TouchEvent) => {
+    const t = ev.touches[0];
+    if (Math.abs(t.clientX - startX) + Math.abs(t.clientY - startY) > touchDelayMoveThreshold) onEnd();
+  };
+  target.addEventListener('touchmove', onMove, { passive: true });
+  target.addEventListener('touchend', onEnd, { passive: true });
+  target.addEventListener('touchcancel', onEnd, { passive: true });
+
+  DDTouch.touchDelayTimer = window.setTimeout(() => {
+    cancelDelayedTouchStart(target, onMove, onEnd); // NOTE: also restores contextmenu, so suppress AFTER
+    DDTouch.touchHandled = true;
+    DDTouch.wasDelayed = true;
+    suppressContextMenu();
+    simulateMouseEvent(e, 'mousedown');
+    delete DDTouch.wasDelayed; // consumed synchronously above - don't leak into the next gesture
+  }, touchDragDelay);
 }
 
 /**
@@ -84,13 +157,16 @@ export function touchmove(e: TouchEvent): void {
 }
 
 /**
- * Handle the touchend events
+ * Handle the touchend events - also used for `touchcancel` (browser aborting the gesture, which is
+ * what we get if something still manages to pop a long-press menu over us) so we always clean up.
  * @param {Object} e The document's touchend event
  */
 export function touchend(e: TouchEvent): void {
 
   // Ignore event if not handled
   if (!DDTouch.touchHandled) return;
+
+  restoreContextMenu();
 
   // cancel delayed leave event when we release on ourself which happens BEFORE we get this!
   if (DDTouch.pointerLeaveTimeout) {
@@ -102,8 +178,9 @@ export function touchend(e: TouchEvent): void {
 
   simulateMouseEvent(e, 'mouseup');
 
-  // If the touch interaction did not move, it should trigger a click
-  if (!wasDragging) {
+  // If the touch interaction did not move, it should trigger a click - but not when the browser
+  // aborted the gesture on us (touchcancel), where no click is intended.
+  if (!wasDragging && e.type !== 'touchcancel') {
     simulateMouseEvent(e, 'click');
   }
 

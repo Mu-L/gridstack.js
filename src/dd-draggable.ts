@@ -8,7 +8,7 @@ import { DragTransform, Utils } from './utils';
 import { DDBaseImplement, HTMLElementExtendOpt } from './dd-base-impl';
 import { GridItemHTMLElement, DDUIData, GridStackNode, GridStackPosition, DDDragOpt } from './types';
 import { DDElementHost } from './dd-element';
-import { isTouch, touchend, touchmove, touchstart, pointerdown, DDTouch } from './dd-touch';
+import { isTouch, touchend, touchmove, touchstart, pointerdown, cancelPendingTouchDrag, DDTouch } from './dd-touch';
 import { GridHTMLElement } from './gridstack';
 
 interface DragOffset {
@@ -119,6 +119,7 @@ export class DDDraggable extends DDBaseImplement implements HTMLElementExtendOpt
   public override disable(forDestroy = false): void {
     if (this.disabled === true) return;
     super.disable();
+    cancelPendingTouchDrag();
     this.dragEls.forEach(dragEl => {
       dragEl.removeEventListener('mousedown', this._mouseDown);
       if (isTouch) {
@@ -198,6 +199,11 @@ export class DDDraggable extends DDBaseImplement implements HTMLElementExtendOpt
     if (isTouch && e.currentTarget) {
       (e.currentTarget as HTMLElement).addEventListener('touchmove', touchmove);
       (e.currentTarget as HTMLElement).addEventListener('touchend', touchend);
+      (e.currentTarget as HTMLElement).addEventListener('touchcancel', touchend); // browser aborting on us, clean up too
+    }
+    if (DDTouch.wasDelayed) {
+      // the long-press wait just elapsed - signal the item is now armed & ready to drag
+      this.el.classList.add('ui-draggable-armed');
     }
 
     e.preventDefault();
@@ -241,6 +247,7 @@ export class DDDraggable extends DDBaseImplement implements HTMLElementExtendOpt
        * don't start unless we've moved at least 3 pixels
        */
       this.dragging = true;
+      this.el.classList.remove('ui-draggable-armed');
       DDManager.dragElement = this;
       // if we're dragging an actual grid item, set the current drop as the grid (to detect enter/leave)
       const grid = this.el.gridstackNode?.grid;
@@ -270,11 +277,13 @@ export class DDDraggable extends DDBaseImplement implements HTMLElementExtendOpt
   /** @internal call when the mouse gets released to drop the item at current location */
   protected _mouseUp(e: MouseEvent): void {
     this._stopScrolling();
+    this.el.classList.remove('ui-draggable-armed');
     document.removeEventListener('mousemove', this._mouseMove, true);
     document.removeEventListener('mouseup', this._mouseUp as EventListener, true);
     if (isTouch && e.currentTarget) { // destroy() during nested grid call us again wit fake _mouseUp
       e.currentTarget.removeEventListener('touchmove', touchmove as EventListener, true);
       e.currentTarget.removeEventListener('touchend', touchend as EventListener, true);
+      e.currentTarget.removeEventListener('touchcancel', touchend as EventListener, true);
     }
     if (this.dragging) {
       delete this.dragging;

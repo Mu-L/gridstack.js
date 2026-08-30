@@ -59,8 +59,10 @@
      position: absolute;
      font-size: 0.1px;
      display: block;
-     -ms-touch-action: none;
-     touch-action: none;
+     // not 'none': let a touch swipe over a handle scroll the page normally during the long-press
+     // delay below (JS preventDefault takes over once armed) - see #2781
+     -ms-touch-action: manipulation;
+     touch-action: manipulation;
      user-select: none;
      z-index: 100;
    }
@@ -115,6 +117,31 @@
    &.ui-resizable-resizing {
      will-change: width, height;
    }
+
+   // shown on touch once the long-press pause has been detected, signaling the item is now
+   // ready to be picked up and dragged - see #2781
+   &.ui-draggable-armed {
+     cursor: move;
+     animation: gs-armed-wiggle 0.25s ease-in-out infinite;
+   }
+
+   // same long-press feedback for resize handles, but they keep their own nw/n/ne/... cursor instead
+   // of 'move', and pulse rather than wiggle since the corner ones already use transform:rotate(45deg)
+   // for their arrow - animating transform here would fight that.
+   > .ui-resizable-handle.ui-resizable-armed {
+     animation: gs-armed-pulse 0.5s ease-in-out infinite;
+   }
+ }
+
+ @keyframes gs-armed-wiggle {
+   0%, 100% { transform: rotate(0deg); }
+   25% { transform: rotate(-1.5deg); }
+   75% { transform: rotate(1.5deg); }
+ }
+
+ @keyframes gs-armed-pulse {
+   0%, 100% { opacity: 1; }
+   50% { opacity: 0.3; }
  }
 
  // not .grid-stack-item specific to also affect dragIn regions

@@ -5,6 +5,7 @@ Change log
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
 
+- [13.2.0-dev (TBD)](#1320-dev-tbd)
 - [13.2.0 (2026-08-19)](#1320-2026-08-19)
 - [13.1.2 (2026-07-26)](#1312-2026-07-26)
 - [13.1.1 (2026-07-25)](#1311-2026-07-25)
@@ -144,6 +145,9 @@ Change log
 - [v0.1.0 (2014-11-18)](#v010-2014-11-18)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## 13.2.0-dev (TBD)
+* feat: [#2781](https://github.com/gridstack/gridstack.js/issues/3177) [#2781](https://github.com/gridstack/gridstack.js/issues/3177) mobile: pause to drag/reszie vs scroll behavior
 
 ## 13.2.0 (2026-08-19)
 * feat: [#701](https://github.com/gridstack/gridstack.js/issues/701) removed printMode as we support much better printing now that doesn't compromise.
